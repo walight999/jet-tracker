@@ -29,6 +29,8 @@ def load_watchlist():
     """
     encoded = os.getenv("WATCHLIST_GZ_B64")
     if encoded:
+        # Strip BOM + any whitespace that pipe-based secret upload may add.
+        encoded = encoded.lstrip("﻿").strip()
         raw = gzip.decompress(base64.b64decode(encoded))
         return json.loads(raw.decode("utf-8"))
     return json.loads(config.WATCHLIST_PATH.read_text(encoding="utf-8"))
