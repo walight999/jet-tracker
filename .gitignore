@@ -5,4 +5,4 @@ __pycache__/
 *.log
 _*.py
 watchlist.json
-.github/
+.watchlist_b64.txt
