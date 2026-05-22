@@ -1,0 +1,61 @@
+name: jet-tracker poll
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"   # every 5 min (GHA may delay 5-15 min under load)
+  workflow_dispatch: {}     # manual trigger from Actions tab or `gh workflow run`
+
+concurrency:
+  group: jet-tracker-poll
+  cancel-in-progress: false  # never cancel a running poll; queue the next one
+
+permissions:
+  contents: read
+  actions: write   # needed by cache@v4 save
+
+jobs:
+  poll:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      WATCHLIST_GZ_B64: ${{ secrets.WATCHLIST_GZ_B64 }}
+      NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+      NOTION_DB_ID: ${{ secrets.NOTION_DB_ID }}
+      GOLD_SIGNAL_WEBHOOK: ${{ secrets.GOLD_SIGNAL_WEBHOOK }}
+      POLL_INTERVAL_MIN: "5"
+      ALERT_COOLDOWN_MIN: "45"
+      PUSH_MIN_SCORE: "6"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Restore data cache (state + adsbdb/geocode/trace/airports)
+        id: cache-restore
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: jet-tracker-data-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            jet-tracker-data-
+
+      - name: Ensure data dir
+        run: mkdir -p data
+
+      - name: Run poll
+        run: python main.py
+
+      - name: Save data cache
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data
+          key: jet-tracker-data-${{ github.run_id }}-${{ github.run_attempt }}
