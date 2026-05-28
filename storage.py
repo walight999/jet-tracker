@@ -97,6 +97,26 @@ def recent_alert_count(window_minutes=60):
         return cur.fetchone()[0]
 
 
+def recent_event_count(window_minutes=60):
+    """Count all qualifying events (both Telegram-fired alerts AND digest-queued)
+    in the last window. cluster_factor uses this — the previous source
+    (recent_alert_count) only counted Telegram-fired alerts, which created a
+    chicken-and-egg deadlock: cluster can't grow without Telegram alerts, but
+    score can't reach Telegram threshold without cluster. digest_queue holds
+    everything that passes the watchlist filter, so it is the correct base.
+    """
+    cutoff = int((datetime.now(timezone.utc) - timedelta(minutes=window_minutes)).timestamp())
+    with _conn() as c:
+        a = c.execute("SELECT COUNT(*) FROM alerts WHERE ts >= ?", (cutoff,)).fetchone()[0]
+        # digest_queue table is created lazily by digest.init() — guard against
+        # the table-missing case (first ever run before digest.init ran).
+        try:
+            d = c.execute("SELECT COUNT(*) FROM digest_queue WHERE ts >= ?", (cutoff,)).fetchone()[0]
+        except Exception:
+            d = 0
+    return a + d
+
+
 def mark_alerted(hex_code, callsign, label):
     with _conn() as c:
         c.execute(

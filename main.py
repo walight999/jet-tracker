@@ -77,7 +77,9 @@ def _emit(summary, meta, phase_label=None):
     if meta.get("owner"):
         summary["watchlist_owner"] = meta.get("owner")
 
-    recent = storage.recent_alert_count(60)
+    # cluster_factor counts ALL recent qualifying events (alerts + digest),
+    # not just Telegram-fired ones — see storage.recent_event_count rationale.
+    recent = storage.recent_event_count(60)
     summary, sc = enrich.add_intel(summary, meta, recent)
 
     hex_code = summary["hex"]

@@ -1,0 +1,50 @@
+name: jet-tracker daily digest
+
+# Phase 1B: read digest_queue, push one Telegram message summarising the last 24h.
+# Counterpart to poll.yml — same cache mechanism so digest_queue is visible.
+
+on:
+  schedule:
+    - cron: "0 2 * * *"     # 02:00 UTC = 09:00 ICT
+  workflow_dispatch: {}
+
+concurrency:
+  group: jet-tracker-digest-daily
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  actions: write     # required by cache@v4 save
+
+jobs:
+  digest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    env:
+      TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+      TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+      PUSH_MIN_SCORE: "6"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install deps
+        run: pip install -r requirements.txt
+
+      - name: Restore data cache (shared with poll.yml)
+        uses: actions/cache/restore@v4
+        with:
+          path: data
+          key: jet-tracker-data-${{ github.run_id }}-${{ github.run_attempt }}
+          restore-keys: |
+            jet-tracker-data-
+
+      - name: Ensure data dir
+        run: mkdir -p data
+
+      - name: Send digest
+        run: python digest_send.py
